@@ -12,7 +12,8 @@ fun main() {
         val allFiles = File(source).getAllFiles()
         println("Found ${allFiles.size} source files.")
 
-        allFiles.chunked(CHUNK_SIZE).forEach { processChunk(it, source, destination) }
+        val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
+        println("Backed up $backedUp files.")
     }
 }
 
@@ -22,14 +23,15 @@ private fun parseConfig(): List<Pair<String, String>> {
     return config.chunked(2).map { Pair(it.first(), it.last()) }
 }
 
-private fun processChunk(chunk: List<File>, sourceRoot: String, destinationRoot: String) {
-    runBlocking {
+private fun processChunk(chunk: List<File>, sourceRoot: String, destinationRoot: String): Int {
+    return runBlocking {
         val backedUp = chunk.map {
             async {
                 backupFile(it, sourceRoot, destinationRoot)
             }
         }.awaitAll().count { it }
         println("Backed up $backedUp/${chunk.size} files. Eg: ${chunk.first().path}")
+        return@runBlocking backedUp
     }
 }
 
