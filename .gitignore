@@ -1,0 +1,6 @@
+build/
+.gradle/
+.idea/
+
+src/main/resources/config.txt
+example/out/
