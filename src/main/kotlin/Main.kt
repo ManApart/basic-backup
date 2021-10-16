@@ -17,7 +17,7 @@ fun main() {
 }
 
 private fun parseConfig(): List<Pair<String, String>> {
-    val config = File("./src/main/resources/config.txt").readLines()
+    val config = File("./src/main/resources/config.txt").readLines().filter { it.isNotBlank() }
     if (config.size % 2 != 0) throw Exception("Must have an even number of lines. Do you have one destination per source?")
     return config.chunked(2).map { Pair(it.first(), it.last()) }
 }
@@ -29,7 +29,7 @@ private fun processChunk(chunk: List<File>, sourceRoot: String, destinationRoot:
                 backupFile(it, sourceRoot, destinationRoot)
             }
         }.awaitAll().count { it }
-        println("Backed up $backedUp/${chunk.size} files")
+        println("Backed up $backedUp/${chunk.size} files. Eg: ${chunk.first().path}")
     }
 }
 
@@ -39,6 +39,7 @@ private fun backupFile(file: File, sourceRoot: String, destinationRoot: String):
 
     if (!destFile.exists() || file.lastModified() > destFile.lastModified()) {
         try {
+            file.parentFile.mkdirs()
             file.copyTo(destFile, overwrite = true)
             return true
         } catch (ex: Exception) {

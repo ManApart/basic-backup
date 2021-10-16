@@ -3,4 +3,5 @@ build/
 .idea/
 
 src/main/resources/config.txt
+src/main/resources/catalogue.txt
 example/out/
