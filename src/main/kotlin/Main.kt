@@ -9,7 +9,7 @@ private const val CHUNK_SIZE = 100
 fun main() {
     parseConfig().forEach { (source, destination) ->
         println("Backing up $source to $destination")
-        val allFiles = File(source).getAllFiles()
+        val allFiles = File(source).getAllFiles(source, destination)
         println("Found ${allFiles.size} source files.")
 
         val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
@@ -52,9 +52,16 @@ private fun backupFile(file: File, sourceRoot: String, destinationRoot: String):
     return false
 }
 
-private fun File.getAllFiles(): List<File> {
+private fun File.getAllFiles(sourceRoot: String, destinationRoot: String): List<File> {
     return if (isDirectory) {
-        listFiles()!!.flatMap { it.getAllFiles() }
+        val relativePath = path.substring(sourceRoot.length, path.length)
+        val destFile = File("$destinationRoot/$relativePath")
+        if (lastModified() > destFile.lastModified()) {
+            listFiles()!!.flatMap { it.getAllFiles(sourceRoot, destinationRoot) }
+        } else {
+            println("Skipping ${this.absolutePath}")
+            listOf()
+        }
     } else {
         listOf(this)
     }
