@@ -5,11 +5,15 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import java.awt.SystemColor.text
+import java.io.BufferedWriter
 import java.io.File
+import java.io.FileWriter
 import kotlin.Exception
 
 private const val CHUNK_SIZE = 100
 private const val MAX_FILES_PER_FOLDER = 2000
+val log = BufferedWriter(FileWriter("./log.txt"))
 
 fun main() {
     val config = Json.decodeFromString<Configs>(File("./src/main/resources/config.json").readText())
@@ -24,6 +28,11 @@ fun main() {
             println("Backed up $backedUp files.")
         }
     }
+    log.close()
+}
+
+private fun log(text: String){
+    log.write(text + "\n")
 }
 
 private fun processChunk(chunk: List<File>, sourceRoot: String, destinationRoot: String): Int {
@@ -83,7 +92,7 @@ private fun File.getFilesThoroughly(sourceRoot: String, destinationRoot: String,
                 println("Skipping $path because it has over $MAX_FILES_PER_FOLDER files")
                 listOf()
             } else {
-                println(path)
+                log(path)
                 listFiles()!!.flatMap { it.getFilesThoroughly(sourceRoot, destinationRoot, exclusions) }
             }
         }
@@ -104,7 +113,7 @@ private fun File.getFilesWithWalk(sourceRoot: String, destinationRoot: String, e
             val destFile = File("$destinationRoot/$relativePath")
             if (!folders.contains(file.parent)) {
                 folders.add(file.parent)
-                println(file.parent)
+                log(file.parent)
             }
             file.lastModified() > destFile.lastModified()
         }.toList()
