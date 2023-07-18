@@ -1,28 +1,29 @@
 @file:JvmName("basic-backup")
 
+import basicBackup.Configs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.Exception
 
 private const val CHUNK_SIZE = 100
+private const val MAX_FILES_PER_FOLDER = 2000
 
 fun main() {
-    parseConfig().forEach { (source, destination) ->
-        println("Backing up $source to $destination")
-        val allFiles = File(source).getAllFiles(source, destination)
-        println("Found ${allFiles.size} source files.")
+    val config = Json.decodeFromString<Configs>(File("./src/main/resources/config.json").readText())
+    config.configs.forEach {
+        with(it) {
+            println("Backing up $source to $destination")
+            val start = System.currentTimeMillis()
+            val allFiles = File(source).getFilesThoroughly(source, destination, exclusions)
+            println("Found ${allFiles.size} source files in ${System.currentTimeMillis() - start}.")
 
-        val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
-        println("Backed up $backedUp files.")
+            val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
+            println("Backed up $backedUp files.")
+        }
     }
-}
-
-private fun parseConfig(): List<Pair<String, String>> {
-    val config = File("./src/main/resources/config.txt").readLines().filter { it.isNotBlank() }
-    if (config.size % 2 != 0) throw Exception("Must have an even number of lines. Do you have one destination per source?")
-    return config.chunked(2).map { Pair(it.first(), it.last()) }
 }
 
 private fun processChunk(chunk: List<File>, sourceRoot: String, destinationRoot: String): Int {
@@ -54,12 +55,13 @@ private fun backupFile(file: File, sourceRoot: String, destinationRoot: String):
     return false
 }
 
-private fun File.getAllFiles(sourceRoot: String, destinationRoot: String): List<File> {
+//Only checks one folder deep for modified
+private fun File.getFilesQuickly(sourceRoot: String, destinationRoot: String, exclusions: Set<String>): List<File> {
     return if (isDirectory) {
         val relativePath = path.substring(sourceRoot.length, path.length)
         val destFile = File("$destinationRoot/$relativePath")
         if (lastModified() > destFile.lastModified()) {
-            listFiles()!!.flatMap { it.getAllFiles(sourceRoot, destinationRoot) }
+            listFiles()!!.flatMap { it.getFilesQuickly(sourceRoot, destinationRoot, exclusions) }
         } else {
             println("Skipping ${this.absolutePath}")
             listOf()
@@ -67,4 +69,43 @@ private fun File.getAllFiles(sourceRoot: String, destinationRoot: String): List<
     } else {
         listOf(this)
     }
+}
+
+//Checks every file all the way down
+private fun File.getFilesThoroughly(sourceRoot: String, destinationRoot: String, exclusions: Set<String>): List<File> {
+    val relativePath = path.substring(sourceRoot.length, path.length)
+    val destFile = File("$destinationRoot/$relativePath")
+    return when {
+        name.startsWith(".") -> listOf()
+        exclusions.contains(path) -> listOf()
+        isDirectory -> {
+            if (listFiles()!!.size > 2000) {
+                println("Skipping $path because it has over $MAX_FILES_PER_FOLDER files")
+                listOf()
+            } else {
+                println(path)
+                listFiles()!!.flatMap { it.getFilesThoroughly(sourceRoot, destinationRoot, exclusions) }
+            }
+        }
+
+        lastModified() > destFile.lastModified() -> listOf(this)
+        else -> listOf()
+    }
+}
+
+private fun File.getFilesWithWalk(sourceRoot: String, destinationRoot: String, exclusions: Set<String>): List<File> {
+    val folders = mutableSetOf<String>()
+    return walk()
+        .filter { !it.isDirectory }
+        .filter { !it.name.startsWith(".") }
+        .filter { !exclusions.contains(it.parent) }
+        .filter { file ->
+            val relativePath = file.path.substring(sourceRoot.length, file.path.length)
+            val destFile = File("$destinationRoot/$relativePath")
+            if (!folders.contains(file.parent)) {
+                folders.add(file.parent)
+                println(file.parent)
+            }
+            file.lastModified() > destFile.lastModified()
+        }.toList()
 }

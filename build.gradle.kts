@@ -1,9 +1,10 @@
 
 plugins {
-    kotlin("jvm") version "1.7.10"
+    kotlin("jvm") version "1.8.20"
+    kotlin("plugin.serialization") version "1.8.20"
 }
 
-group = "me.austin"
+group = "org.rak.manapart"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -11,9 +12,11 @@ repositories {
 }
 
 dependencies {
+    implementation(kotlin("stdlib"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.5.31")
-    implementation(kotlin("stdlib-jdk8"))
 }
 
 tasks.test {
