@@ -1,11 +1,8 @@
 @file:JvmName("basic-backup")
 
 import basicBackup.Configs
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
-import java.awt.SystemColor.text
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -14,24 +11,34 @@ import kotlin.Exception
 private const val CHUNK_SIZE = 100
 private const val MAX_FILES_PER_FOLDER = 2000
 val log = BufferedWriter(FileWriter("./log.txt"))
+val doBackup = true
+val doThoroughly = true
+val forefrontLogging = false
 
 fun main() {
     val config = Json.decodeFromString<Configs>(File("./src/main/resources/config.json").readText())
-    config.configs.forEach {
-        with(it) {
+    config.configs.forEach { pathConfig ->
+        with(pathConfig) {
             println("Backing up $source to $destination")
             val start = System.currentTimeMillis()
-            val allFiles = File(source).getFilesThoroughly(source, destination, exclusions)
+            val allFiles = if (doThoroughly) {
+                File(source).getFilesThoroughly(source, destination, exclusions)
+            } else {
+                File(source).getFilesQuickly(source, destination, exclusions)
+            }
             println("Found ${allFiles.size} source files in ${System.currentTimeMillis() - start}.")
 
-            val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
-            println("Backed up $backedUp files.")
+            if (doBackup) {
+                val backedUp = allFiles.chunked(CHUNK_SIZE).sumOf { processChunk(it, source, destination) }
+                println("Backed up $backedUp files.")
+            }
         }
     }
     log.close()
 }
 
-private fun log(text: String){
+private fun log(text: String) {
+    if (forefrontLogging) println(text)
     log.write(text + "\n")
 }
 
@@ -93,7 +100,11 @@ private fun File.getFilesThoroughly(sourceRoot: String, destinationRoot: String,
                 listOf()
             } else {
                 log(path)
-                listFiles()!!.flatMap { it.getFilesThoroughly(sourceRoot, destinationRoot, exclusions) }
+                listFiles()!!
+                    .also { println("Inspecting ${it.size} files in $path") }
+                    .flatMap { file ->
+                        file.getFilesThoroughly(sourceRoot, destinationRoot, exclusions)
+                    }
             }
         }
 
